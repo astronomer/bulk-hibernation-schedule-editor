@@ -1,0 +1,9 @@
+[project]
+name = "bulk-hibernation-schedule-editor"
+description = "Bulk-set Astro Deployment hibernation schedules from a YAML config via the Astro API"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "pyyaml>=6.0.3",
+    "requests>=2.34.2",
+]

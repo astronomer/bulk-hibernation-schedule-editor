@@ -1,0 +1,26 @@
+# Optional guard: abort if the astro CLI is pointed at a different organization.
+organization_id: <your-organization-id>
+
+# Each group defines a set of schedules (cron is UTC, 5-part) and the deployments
+# that get exactly those schedules. Existing schedules on those deployments are
+# REPLACED. A deployment may appear in only one group. Use `schedules: []` to
+# remove all schedules from the listed deployments.
+schedule_groups:
+  business_hours_central:
+    schedules:
+      # 6pm CDT (UTC-5) Mon-Fri -> 8am CDT Mon-Fri. Shifts by an hour under CST.
+      - description: nights
+        hibernate_at_cron: "0 23 * * 1-5"
+        wake_at_cron: "0 13 * * 1-5"
+        enabled: true
+    deployments:
+      - <deployment-id>
+      - <deployment-id>
+
+  always_off_weekends:
+    schedules:
+      - description: weekends
+        hibernate_at_cron: "0 0 * * 6"
+        wake_at_cron: "0 12 * * 1"
+    deployments:
+      - <deployment-id>

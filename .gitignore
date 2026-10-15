@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+*.pyc
+.idea/
+.DS_Store
+
+# Real configs contain org/deployment IDs; only the example is committed.
+hibernation_schedules.yaml
+*.local.yaml
