@@ -116,6 +116,92 @@ The API never returns the values of secret env vars, so the script sends them ba
 
 This behavior was verified on 2026-10-15 against a test Deployment: a secret env var was read correctly by a DAG task both before and after the script updated the Deployment. If you want extra assurance, repeat that test on a disposable Deployment before bulk runs.
 
+## Other Ways to Manage Hibernation
+
+This script manages **schedules** in bulk. For one-off changes, or to temporarily ignore a schedule, use the Astro UI or the manual overrides below.
+
+### Change a Schedule in the Astro UI
+
+1. In the Astro UI, click **Deployments**, then select the Deployment.
+2. Click **Edit** at the top of the Deployment page.
+3. In the **Advanced** section, find **Wake Schedules**. Add, edit, or remove schedules using the calendar-based interface or cron expressions. Switch between them with **Switch to cron scheduling** / **Switch to simple scheduling**.
+   - To keep a Deployment hibernated indefinitely, choose the **Never Wake** schedule type. In cron mode, this is `@always` as the hibernate expression and `@never` as the wake expression. Only one **Never Wake** schedule can be enabled at a time.
+4. Click **Update Deployment**.
+
+Cron schedules are always in UTC, in the UI as well as in this script.
+
+> **Note:** This script **replaces** a Deployment's schedules. If a Deployment is listed in your config, the next `--apply` run overwrites any schedule changes made in the UI. Update the YAML config instead, or remove the Deployment from it.
+
+See [Create a wake schedule](https://www.astronomer.io/docs/astro/deployment-resources#create-a-wake-schedule).
+
+### Manually Override the Schedule
+
+An **override** hibernates or wakes a Deployment regardless of its schedules, either until a set time or until you remove it. Overrides don't change the schedules themselves. When an override ends or is removed, the Deployment goes back to following its schedules.
+
+Setting or removing an override requires the `deployment.hibernation.update` permission. Editing schedules requires `deployment.update`.
+
+#### Astro UI
+
+To hibernate now:
+
+1. Click **Deployments**, then select the Deployment.
+2. Open the **More actions** menu (⋯) and select **Hibernate Deployment**.
+3. Configure the hibernation period, then click **Confirm**.
+
+To wake up, or to return to the normal schedule:
+
+1. Open the Deployment's **More actions** menu (⋯) and select **Wake Up Deployment**.
+2. Choose one of the following:
+   - **Wake until further notice**: wake now and ignore schedules until you remove the override.
+   - **Wake until set time and date**: wake now and go back to the schedule at the time you set.
+   - **Remove override and return to normal schedule**: cancel any override.
+3. Click **Confirm**.
+
+#### Astro CLI
+
+```bash
+# Hibernate: indefinitely, for a duration, or until a UTC time
+astro deployment hibernate <deployment-id>
+astro deployment hibernate <deployment-id> --for 2h30m
+astro deployment hibernate <deployment-id> --until 2026-10-20T13:00:00Z
+
+# Wake up: same options
+astro deployment wake-up <deployment-id>
+astro deployment wake-up <deployment-id> --for 4h
+astro deployment wake-up <deployment-id> --until 2026-10-15T23:00:00Z
+
+# Remove any override and return to the schedule
+astro deployment wake-up <deployment-id> --remove-override
+```
+
+Add `--force` to skip the confirmation prompt. See [`astro deployment hibernate`](https://www.astronomer.io/docs/cli/v1.46/astro-deployment-hibernate) and [`astro deployment wake-up`](https://www.astronomer.io/docs/cli/v1.46/astro-deployment-wake-up).
+
+#### Astro API
+
+Unlike schedules, overrides have their own endpoint, so you don't have to send the full Deployment config.
+
+```bash
+# Hibernate until a UTC time ("isHibernating": false wakes it instead).
+# Omit overrideUntil to keep the override until it's removed.
+curl -X POST "https://api.astronomer.io/v1/organizations/$ORG_ID/deployments/$DEPLOYMENT_ID/hibernation-override" \
+  -H "Authorization: Bearer $ASTRO_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"isHibernating": true, "overrideUntil": "2026-10-20T13:00:00Z"}'
+
+# Remove the override and return to the schedule
+curl -X DELETE "https://api.astronomer.io/v1/organizations/$ORG_ID/deployments/$DEPLOYMENT_ID/hibernation-override" \
+  -H "Authorization: Bearer $ASTRO_API_TOKEN"
+```
+
+See [Configure a hibernation override](https://www.astronomer.io/docs/astro/api/v-1/deployment/configure-a-hibernation-override-for-a-deployment) and [Delete a hibernation override](https://www.astronomer.io/docs/astro/api/v-1/deployment/delete-a-hibernation-override-for-a-deployment).
+
+#### How Overrides Interact With This Script
+
+- The script never sets or removes overrides.
+- When the script updates a Deployment's schedules, any active override is kept.
+
+This means a Deployment can stay hibernated or awake after a bulk update until its override ends or you remove it.
+
 ## Recommendations
 
 - Always do a dry run first and read the Organization line at the top of the output.
@@ -126,5 +212,6 @@ This behavior was verified on 2026-10-15 against a test Deployment: a secret env
 
 - **Tested setup:** the script was tested on a Dedicated cluster Deployment (AWS, Astro executor). Standard, Celery, Kubernetes executor, and Remote Execution Deployments haven't been tested. The post-update verification will flag unexpected changes, but test on one Deployment first.
 - **Hybrid:** Hybrid Deployments aren't supported.
+- **Never Wake schedules:** the UI's **Never Wake** schedule type (`@always` / `@never`) can't be set from the config, because the script only accepts 5-part cron expressions. For indefinite hibernation, use a manual override instead.
 - **Targeting:** Deployments are targeted by explicit ID only; there's no workspace-wide or name-pattern selection.
 - **Concurrent edits:** Deployments are updated one at a time. If someone edits a Deployment in the UI between the script's read and write, the script's write overwrites that edit.
